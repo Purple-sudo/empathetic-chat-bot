@@ -240,6 +240,30 @@
             background: white;
             border-top: 1px solid #e0e0e0;
         }
+
+        .bot-name-settings {
+            margin-top: 0.75rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        .bot-name-settings input {
+            max-width: 180px;
+            border-radius: 12px;
+            padding: 0.25rem 0.5rem;
+            border: 1px solid #ddd;
+            font-size: 0.85rem;
+        }
+
+        .bot-name-settings button {
+            border-radius: 12px;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+        }
         
         .input-group {
             display: flex;
@@ -349,7 +373,7 @@
                     <a href="{{ url_for('help_page') }}" class="logout-btn">Need urgent help?</a>
                     <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
                 </div>
-                <h1>💬 Aria</h1>
+                <h1 id="botNameTitle">💬 Aria</h1>
                 <p>An empathetic chatbot - here to listen and support you</p>
                 <p style="font-size: 0.75rem; margin-top: 0.25rem; opacity: 0.8;">🔒 End-to-End Encrypted</p>
             </div>
@@ -393,6 +417,11 @@
                     </div>
                 </form>
                 <button class="btn-reset" onclick="resetChat()">Reset Conversation</button>
+                <div class="bot-name-settings">
+                    <span>Bot name:</span>
+                    <input type="text" id="botNameInput" placeholder="Aria" maxlength="40" />
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="updateBotName()">Save</button>
+                </div>
             </div>
         </div>
     </div>
@@ -406,6 +435,8 @@
         const themeSelector = document.getElementById('themeSelector');
         const crisisBanner = document.getElementById('crisisBanner');
         const crisisResourcesContainer = document.getElementById('crisisResources');
+        const botNameTitle = document.getElementById('botNameTitle');
+        const botNameInput = document.getElementById('botNameInput');
         
         // Load saved theme
         async function loadTheme() {
@@ -418,6 +449,22 @@
                 }
             } catch (error) {
                 console.error('Error loading theme:', error);
+            }
+        }
+
+        // Load bot name
+        async function loadBotName() {
+            try {
+                const response = await fetch('/bot-name');
+                const data = await response.json();
+                if (data.name && botNameTitle) {
+                    botNameTitle.textContent = `💬 ${data.name}`;
+                }
+                if (data.name && botNameInput) {
+                    botNameInput.value = data.name;
+                }
+            } catch (error) {
+                console.error('Error loading bot name:', error);
             }
         }
         
@@ -601,9 +648,39 @@
                             <p><small>How are you feeling today?</small></p>
                         </div>
                     `;
+                    // Also clear any visible crisis resources
+                    if (crisisBanner) {
+                        crisisBanner.classList.remove('active');
+                    }
+                    if (crisisResourcesContainer) {
+                        crisisResourcesContainer.innerHTML = '';
+                    }
                 } catch (error) {
                     console.error('Error resetting:', error);
                 }
+            }
+        }
+
+        async function updateBotName() {
+            if (!botNameInput) return;
+            const name = botNameInput.value.trim();
+            if (!name) {
+                return;
+            }
+            try {
+                const response = await fetch('/bot-name', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name })
+                });
+                const data = await response.json();
+                if (response.ok && data.name && botNameTitle) {
+                    botNameTitle.textContent = `💬 ${data.name}`;
+                }
+            } catch (error) {
+                console.error('Error updating bot name:', error);
             }
         }
         
@@ -619,8 +696,9 @@
             }
         });
         
-        // Load theme on page load
+        // Load theme and bot name on page load
         loadTheme();
+        loadBotName();
         
         // Focus input on load
         userInput.focus();

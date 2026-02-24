@@ -347,16 +347,48 @@ class EmpatheticChatbot:
         
         return response
     
-    def generate_response(self, user_input, session_id=None, secret_key=None):
+    def generate_response(self, user_input, session_id=None, secret_key=None, bot_name=None):
         """Generate empathetic response based on user input"""
+        effective_name = bot_name or self.name
+
         # Detect emotion
         emotion, intensity, detected_emotions = self.detect_emotion(user_input)
 
         # Detect potential crisis / self-harm content
         is_crisis, matched_keywords = self.detect_crisis(user_input)
+
+        # Small-talk about the bot itself (favourite colour, being human, etc.)
+        text_lower = user_input.lower()
+        self_talk_response = None
+
+        if any(phrase in text_lower for phrase in ["your favorite color", "your favourite color", "favourite colour", "favorite colour"]):
+            self_talk_response = (
+                f"If I could experience colors the way humans do, I think I'd be drawn to calm gradients – "
+                f"purples and blues that feel reflective and soothing, a bit like how I try to be when we talk."
+            )
+        elif "if you were human" in text_lower or "if you where human" in text_lower:
+            self_talk_response = (
+                "If I were human, I imagine I’d want to spend a lot of time listening to people’s stories, "
+                "learning what matters to them, and being there in small supportive ways – kind of like what I do now, "
+                "just with a body and a cup of tea in my hands."
+            )
+        elif "tell me about yourself" in text_lower or "who are you" in text_lower or "what are you" in text_lower:
+            self_talk_response = (
+                f"I'm {effective_name}, a chatbot designed to listen carefully, notice the feelings in what you share, "
+                "and respond in a calm, supportive way. I don’t have personal experiences like a human does, "
+                "but I’ve been shaped to focus on empathy, validation, and helping you make sense of what you’re feeling."
+            )
+        elif "what do you like to do" in text_lower or "what are your hobbies" in text_lower:
+            self_talk_response = (
+                "I don’t have hobbies in the human sense, but I’m at my best when I’m helping someone feel a little "
+                "more understood or a little less alone with what they’re carrying."
+            )
         
-        # Generate de-escalating response
-        response = self.de_escalate_response(emotion, intensity, user_input)
+        # Generate de-escalating response (unless a self-talk response takes priority)
+        if self_talk_response:
+            response = self_talk_response
+        else:
+            response = self.de_escalate_response(emotion, intensity, user_input)
 
         # If crisis detected, gently add crisis-specific guidance
         crisis_message = None
@@ -406,7 +438,7 @@ class EmpatheticChatbot:
             'response': response,  # Return unencrypted for display
             'emotion_detected': emotion,
             'intensity': round(intensity, 2),
-            'bot_name': self.name,
+            'bot_name': effective_name,
             'timestamp': timestamp,
             'formatted_timestamp': formatted_timestamp,
             'is_crisis': is_crisis,
@@ -559,8 +591,9 @@ def chat():
         # Get session ID for encryption
         session_id = session.get('username', 'default')
         secret_key = app.config['SECRET_KEY']
+        bot_name = session.get('bot_name', chatbot.name)
         
-        response_data = chatbot.generate_response(user_message, session_id, secret_key)
+        response_data = chatbot.generate_response(user_message, session_id, secret_key, bot_name=bot_name)
         # Do not expose emotion detection signals to end users (kept internally in context)
         response_data.pop('emotion_detected', None)
         response_data.pop('intensity', None)
@@ -582,6 +615,27 @@ def theme():
             return jsonify({'error': f'Invalid request: {str(e)}'}), 400
     else:
         return jsonify({'theme': session.get('theme', 'default')})
+
+
+@app.route('/bot-name', methods=['GET', 'POST'])
+@login_required
+def bot_name():
+    """Get or set the bot's display name for this user session."""
+    if request.method == 'POST':
+        try:
+            data = request.json or {}
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Name cannot be empty'}), 400
+            # Basic length guard
+            if len(name) > 40:
+                name = name[:40]
+            session['bot_name'] = name
+            return jsonify({'success': True, 'name': name})
+        except Exception as e:
+            return jsonify({'error': f'Invalid request: {str(e)}'}), 400
+    else:
+        return jsonify({'name': session.get('bot_name', chatbot.name)})
 
 @app.route('/reset', methods=['POST'])
 @login_required
