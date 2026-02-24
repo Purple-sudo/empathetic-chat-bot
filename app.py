@@ -3,6 +3,7 @@ import base64
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
+from textblob import TextBlob
 from datetime import datetime, date
 from functools import wraps
 from cryptography.fernet import Fernet
@@ -120,84 +121,216 @@ class EmpatheticChatbot:
         return len(matched_keywords) > 0, matched_keywords
         
     def detect_emotion(self, text):
-        """Detect emotional state from text"""
-        # Use VADER sentiment analyzer
+        """Detect emotional state from text using multiple signals."""
+        # Overall sentiment (VADER)
         scores = sia.polarity_scores(text)
-        
-        # Detect emotional keywords
+        vader_compound = scores["compound"]
+
+        # Finer-grained sentiment (TextBlob)
+        blob = TextBlob(text)
+        tb_polarity = float(blob.sentiment.polarity)
+        tb_subjectivity = float(blob.sentiment.subjectivity)
+
+        # Richer emotional keyword sets (not exhaustive, but broad)
         emotional_keywords = {
-            'angry': ['angry', 'mad', 'furious', 'rage', 'hate', 'annoyed', 'frustrated'],
-            'sad': ['sad', 'depressed', 'unhappy', 'upset', 'crying', 'hurt', 'lonely'],
-            'anxious': ['anxious', 'worried', 'nervous', 'stressed', 'panic', 'afraid', 'scared'],
-            'happy': ['happy', 'glad', 'excited', 'joyful', 'great', 'wonderful', 'amazing'],
-            'confused': ['confused', 'uncertain', 'unsure', 'lost', 'dont understand'],
-            'grateful': ['thank', 'thanks', 'grateful', 'appreciate', 'blessed']
+            "anger": [
+                "angry", "mad", "furious", "rage", "hate", "annoyed", "irritated",
+                "frustrated", "resentful", "outraged"
+            ],
+            "sadness": [
+                "sad", "depressed", "unhappy", "upset", "crying", "hurt", "heartbroken",
+                "grief", "grieving", "down", "blue"
+            ],
+            "anxiety": [
+                "anxious", "worried", "nervous", "stressed", "panic", "afraid",
+                "scared", "overthinking", "on edge"
+            ],
+            "fear": [
+                "terrified", "petrified", "horrified", "frightened", "phobia",
+                "dread", "panic attack"
+            ],
+            "shame": [
+                "ashamed", "embarrassed", "humiliated", "worthless", "disgusted with myself"
+            ],
+            "guilt": [
+                "guilty", "regret", "regretting", "blame myself", "my fault"
+            ],
+            "loneliness": [
+                "lonely", "alone", "isolated", "left out", "abandoned"
+            ],
+            "hopelessness": [
+                "hopeless", "no way out", "what's the point", "whats the point",
+                "nothing will change", "giving up", "give up"
+            ],
+            "overwhelm": [
+                "overwhelmed", "too much", "can't handle", "cant handle",
+                "burnt out", "burned out", "exhausted"
+            ],
+            "joy": [
+                "happy", "glad", "excited", "joyful", "great", "wonderful", "amazing",
+                "delighted", "thrilled", "ecstatic"
+            ],
+            "love": [
+                "love", "loving", "caring", "affection", "grateful", "appreciate",
+                "thankful", "blessed"
+            ],
+            "confusion": [
+                "confused", "uncertain", "unsure", "lost", "don't understand",
+                "dont understand", "mixed feelings"
+            ],
+            "relief": [
+                "relieved", "finally over", "better now", "not so bad anymore"
+            ],
+            "pride": [
+                "proud", "accomplished", "achieved", "succeeded"
+            ],
+            "neutral": []
         }
-        
+
         text_lower = text.lower()
-        detected_emotions = []
-        intensity = scores['compound']
-        
+        detected_emotions = set()
+
         for emotion, keywords in emotional_keywords.items():
             if any(keyword in text_lower for keyword in keywords):
-                detected_emotions.append(emotion)
-        
-        # Determine primary emotion based on sentiment
-        if intensity <= -0.5:
-            if 'angry' in detected_emotions:
-                primary_emotion = 'angry'
-            elif 'sad' in detected_emotions:
-                primary_emotion = 'sad'
+                detected_emotions.add(emotion)
+
+        # Heuristic to choose a primary emotion based on sentiment + keywords
+        primary_emotion = "neutral"
+
+        # Strong negative: look for specific negative emotions
+        if vader_compound <= -0.4 or tb_polarity <= -0.3:
+            for candidate in ["hopelessness", "sadness", "anger", "fear", "shame", "guilt", "anxiety", "overwhelm"]:
+                if candidate in detected_emotions:
+                    primary_emotion = candidate
+                    break
+            if primary_emotion == "neutral":
+                primary_emotion = "sadness"
+        # Mild negative / worried
+        elif vader_compound < 0 or tb_polarity < 0:
+            if "anxiety" in detected_emotions:
+                primary_emotion = "anxiety"
+            elif "overwhelm" in detected_emotions:
+                primary_emotion = "overwhelm"
+            elif "loneliness" in detected_emotions:
+                primary_emotion = "loneliness"
             else:
-                primary_emotion = 'distressed'
-        elif intensity <= -0.1:
-            primary_emotion = 'anxious' if 'anxious' in detected_emotions else 'concerned'
-        elif intensity >= 0.5:
-            primary_emotion = 'happy' if 'happy' in detected_emotions else 'positive'
-        elif intensity >= 0.1:
-            primary_emotion = 'calm' if 'grateful' in detected_emotions else 'neutral'
+                primary_emotion = "concerned"
+        # Strong positive
+        elif vader_compound >= 0.5 or tb_polarity >= 0.5:
+            for candidate in ["joy", "love", "relief", "pride"]:
+                if candidate in detected_emotions:
+                    primary_emotion = candidate
+                    break
+            if primary_emotion == "neutral":
+                primary_emotion = "joy"
+        # Mild positive or mixed
+        elif vader_compound > 0 or tb_polarity > 0:
+            if "love" in detected_emotions:
+                primary_emotion = "love"
+            elif "relief" in detected_emotions:
+                primary_emotion = "relief"
+            else:
+                primary_emotion = "calm"
         else:
-            primary_emotion = 'neutral'
-            
-        return primary_emotion, intensity, detected_emotions
+            # Neutral sentiment – fall back to explicit emotions or neutral
+            if detected_emotions:
+                # Pick one consistently for storage
+                primary_emotion = sorted(detected_emotions)[0]
+            else:
+                primary_emotion = "neutral"
+
+        # Use VADER compound as intensity indicator
+        intensity = vader_compound
+
+        return primary_emotion, intensity, sorted(list(detected_emotions))
     
     def de_escalate_response(self, emotion, intensity, text):
         """Generate empathetic, de-escalating responses"""
         responses = {
-            'angry': [
-                "I can hear that you're feeling really upset right now. That sounds incredibly difficult. Would you like to take a moment to breathe, or would it help to talk about what's bothering you?",
-                "It sounds like something is really bothering you, and I understand that frustration. Sometimes expressing these feelings can help. I'm here to listen without judgment.",
-                "I sense a lot of strong emotion in what you're sharing. These feelings are valid. Would it help to step back for a moment, or would talking through it feel better right now?"
+            "anger": [
+                "It sounds like you're carrying a lot of anger and frustration right now. That makes a lot of sense given what you're going through. If you’d like, we can unpack what’s behind that anger together.",
+                "I hear how strongly this is affecting you, and it’s completely valid to feel angry. Would it help to talk through what happened, or to explore what you might need right now?",
+                "Those feelings of anger are important – they often point to something that really matters to you. I'm here with you as you make sense of it, one step at a time."
             ],
-            'sad': [
-                "I'm sorry you're going through this. It sounds really hard, and it's okay to feel this way. I'm here to listen. What's on your mind?",
-                "That sounds really painful. I want you to know that you're not alone in this. Would it help to share a bit more about what's weighing on you?",
-                "I can sense that you're hurting right now. These feelings can be overwhelming. Remember, it's okay to feel sad, and I'm here with you through this."
+            "sadness": [
+                "I'm really sorry that you're going through something so heavy. It’s completely okay to feel sad about this. If you’d like, you can share a bit more about what’s weighing on your heart.",
+                "I can feel how much this is hurting you. You don’t have to go through it alone – I’m here to listen and sit with you in this feeling.",
+                "Sometimes sadness can feel like it’s taking up all the space inside. It’s okay to let it be here for a moment. What feels hardest about this right now?"
             ],
-            'anxious': [
-                "I understand that worry and anxiety can feel overwhelming. You're not alone in feeling this way. Let's take things one step at a time. What would help you feel a little more at ease right now?",
-                "It sounds like you're feeling a lot of worry or stress. That's completely understandable. Sometimes it helps to name what we're feeling. Can you tell me a bit more about what's causing this anxiety?",
-                "I hear the concern in your words. Anxiety can make everything feel bigger than it is. Would it help to focus on one thing at a time, or would talking about what's worrying you be more helpful?"
+            "anxiety": [
+                "Feeling anxious in a situation like this is very understandable. Let’s slow things down together and take it one small step at a time. What’s the worry that feels biggest right now?",
+                "I hear a lot of worry in what you’re sharing. Anxiety can make everything feel more urgent and overwhelming. If you’d like, we can name some of those fears and explore them gently.",
+                "It makes sense that you’re feeling on edge. Sometimes it helps to bring things back to the present moment. What’s one small thing you could do right now that might make you feel just a little safer or calmer?"
             ],
-            'distressed': [
-                "I can tell you're going through something really difficult right now. I'm here to listen, and there's no pressure. How are you feeling in this moment?",
-                "It sounds like things are really tough for you. Your feelings are important and valid. Would you like to share what's happening, or would you prefer to take a moment first?",
-                "I sense that you're dealing with something significant. Remember, it's okay to not be okay. I'm here to support you. What would be most helpful right now?"
+            "fear": [
+                "It sounds like there’s a lot of fear in what you’re going through. That’s a very human response. Would it feel okay to talk about what scares you the most here?",
+                "Being afraid in a situation like this doesn’t mean you’re weak – it means you’re human. I’m here with you while we gently look at what feels so frightening.",
+                "Fear can make everything feel uncertain and shaky. You don’t have to have all the answers right now. We can explore this at your pace."
             ],
-            'confused': [
-                "It sounds like you're feeling a bit uncertain or confused about something. That's completely okay - confusion is a normal part of figuring things out. Can you help me understand what's unclear?",
-                "I hear that you're feeling unsure about this. Sometimes talking through things can help bring clarity. Would it help if we explored this together?",
-                "Confusion can be frustrating, but it's also a sign that you're thinking deeply about something. Let's work through this together. What would you like to understand better?"
+            "shame": [
+                "I’m really glad you felt able to share this – shame can make us want to hide, but you don’t have to hide here. What you’re feeling is valid.",
+                "It sounds like you’re being very hard on yourself. If it’s okay, we could gently look at where that harsh inner voice is coming from.",
+                "Feeling ashamed can be incredibly painful. You’re still worthy of care and understanding, even with the things you’re struggling with."
             ],
-            'neutral': [
-                "I'm here and ready to listen. How are you feeling today?",
-                "Thank you for reaching out. What's on your mind?",
-                "I'm here to support you. What would you like to talk about?"
+            "guilt": [
+                "It sounds like you’re carrying a lot of guilt. That’s a heavy feeling to hold on your own. Would it help to talk through what happened and how you see it?",
+                "Guilt often shows up when something really matters to us. We can explore together what feels like your responsibility and what might not be entirely on you.",
+                "You deserve compassion too, even while you’re feeling guilty. If you’d like, we can gently separate the facts from the harsh way you might be judging yourself."
             ],
-            'positive': [
-                "It's wonderful to hear that you're doing well! I'm glad things are going positively for you. Is there anything specific you'd like to share or discuss?",
-                "That sounds really nice! It's great to feel good. Is there anything else on your mind today?",
-                "I'm happy to hear that you're in a good place. How can I support you today?"
+            "loneliness": [
+                "Feeling lonely can be incredibly hard, especially when it seems like no one truly sees what you’re going through. I’m here with you right now.",
+                "You’re not strange or wrong for feeling alone – many people go through this, even if they don’t talk about it. Would it help to share a bit about when you feel loneliness the most?",
+                "Loneliness can make the world feel distant. We can take a moment here just to acknowledge how isolating this feels, without rushing to fix it."
+            ],
+            "hopelessness": [
+                "It sounds like things have felt heavy for a long time, and it’s hard to see a way forward. I’m really glad you’re talking about it with me.",
+                "Feeling hopeless can be deeply exhausting. You don’t have to see the whole path right now – we can start with just one small step, if that feels okay.",
+                "Even if you can’t feel it yet, the fact that you’re reaching out suggests that a part of you still wants support. That part of you matters a lot."
+            ],
+            "overwhelm": [
+                "It really does sound like there’s a lot on your plate. Anyone in your position might feel overwhelmed too.",
+                "When everything feels like too much, it can help to gently break things into smaller pieces. Would you like to talk through what feels most urgent versus what might be able to wait?",
+                "You don’t have to carry all of this alone in this moment. We can sort through it together, one piece at a time."
+            ],
+            "joy": [
+                "It’s really lovely to hear something positive in what you’re sharing. Would you like to talk more about what’s bringing you joy right now?",
+                "I’m glad you’re experiencing this good feeling. Savoring it for a moment can be really nourishing. What about this experience feels most meaningful to you?",
+                "It’s great to hear that something is going well. If you’d like, we can explore how to hold onto or build on this feeling."
+            ],
+            "love": [
+                "It sounds like there’s a lot of care and love in what you’re describing. That’s a powerful feeling.",
+                "Love can be both beautiful and complicated. If you want, we can explore what this love is bringing up for you right now.",
+                "It’s really meaningful that you feel this way. How does this love show up in your day-to-day life?"
+            ],
+            "confusion": [
+                "It’s completely okay to feel unsure or conflicted here. Many situations in life aren’t simple.",
+                "We don’t have to rush to an answer. If you’d like, we can gently untangle what you’re feeling and what options you might have.",
+                "Confusion can be a sign that you’re thinking deeply and honestly about something. We can walk through it together step by step."
+            ],
+            "relief": [
+                "It’s good to hear that there’s at least a bit of relief in what you’re feeling. You’ve likely been holding a lot for a while.",
+                "Sometimes even a small sense of relief can give us a bit more room to breathe. What feels a little lighter for you right now?",
+                "I’m glad you’re experiencing some ease. We can talk about how to support that feeling and protect your energy going forward."
+            ],
+            "pride": [
+                "You’re allowed to feel proud of yourself here. It sounds like you’ve worked hard for this.",
+                "Recognizing your own progress is important. What about this makes you feel most proud?",
+                "It’s really nice to hear you acknowledge your own efforts. You deserve to take a moment and let that pride sink in."
+            ],
+            "calm": [
+                "It’s good to hear that things feel at least a bit steady right now. We can still explore anything that’s on your mind.",
+                "If you’re feeling relatively calm, this can be a helpful time to reflect gently on what you need going forward.",
+                "I’m here with you in this calmer moment. Is there anything you’d like to unpack or prepare for while things feel steadier?"
+            ],
+            "concerned": [
+                "It makes sense to feel concerned about this. Your feelings are telling you that something matters here.",
+                "We can take a closer look at what’s worrying you without judging it. What feels most important to understand right now?",
+                "Even if you’re not sure exactly what you’re feeling yet, that’s okay. We can explore your concerns together at your pace."
+            ],
+            "neutral": [
+                "I’m here and ready to listen to whatever you’d like to share.",
+                "Thank you for reaching out. What feels most present for you right now?",
+                "I’m here to support you. You can start wherever feels easiest."
             ]
         }
         
