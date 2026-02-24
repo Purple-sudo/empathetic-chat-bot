@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Need Help Now? - Aria</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .help-container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .help-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .help-header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 300;
+        }
+        
+        .help-header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        .help-body {
+            padding: 2rem;
+        }
+        
+        .help-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .help-section h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .help-section p {
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .disclaimer {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 1rem;
+        }
+        
+        .btn-back {
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="help-container">
+        <div class="help-header">
+            <h1>Need Help Now?</h1>
+            <p>If you are thinking about hurting yourself or feel in immediate danger, please reach out for help immediately.</p>
+        </div>
+        <div class="help-body">
+            <div class="help-section">
+                <h3>If you are in immediate danger</h3>
+                <p><strong>Contact your local emergency number right away.</strong></p>
+                <p>Examples: 911 (US/Canada), 999 or 112 (UK/EU), or the emergency number in your country.</p>
+            </div>
+            
+            <div class="help-section">
+                <h3>United States &amp; Canada</h3>
+                <p><strong>Suicide &amp; Crisis Lifeline:</strong> Call or text <strong>988</strong>, or chat via 988lifeline.org (24/7, free and confidential).</p>
+            </div>
+            
+            <div class="help-section">
+                <h3>United Kingdom &amp; Ireland</h3>
+                <p><strong>Samaritans:</strong> Call <strong>116 123</strong> or visit samaritans.org (24/7).</p>
+            </div>
+            
+            <div class="help-section">
+                <h3>Australia</h3>
+                <p><strong>Lifeline:</strong> Call <strong>13 11 14</strong> or visit lifeline.org.au (24/7).</p>
+            </div>
+            
+            <div class="help-section">
+                <h3>Other countries</h3>
+                <p>Visit <strong>findahelpline.com</strong> or search online for your local suicide or crisis hotline.</p>
+            </div>
+            
+            <p class="disclaimer">
+                Aria is an AI chatbot designed for emotional support and de-escalation. It is <strong>not</strong> a replacement for professional mental health care, and it cannot respond to emergencies. If you are in crisis, please contact a trusted person, a professional, or a crisis service immediately.
+            </p>
+            
+            <a href="{{ url_for('index') }}" class="btn btn-secondary btn-back">Back to chat</a>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -1,8 +1,6 @@
 import os
-import re
 import base64
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-from textblob import TextBlob
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 from datetime import datetime, date
@@ -28,6 +26,50 @@ except LookupError:
 # Initialize sentiment analyzer
 sia = SentimentIntensityAnalyzer()
 
+# Crisis / self-harm detection keywords (non-exhaustive)
+CRISIS_KEYWORDS = [
+    "suicide",
+    "kill myself",
+    "end my life",
+    "end it all",
+    "hurt myself",
+    "self harm",
+    "self-harm",
+    "cut myself",
+    "cutting",
+    "overdose",
+    "don't want to live",
+    "dont want to live",
+    "wish i were dead",
+    "wish i was dead",
+    "can't go on",
+    "cant go on"
+]
+
+# High-level crisis resources to surface to the user
+HELPLINE_RESOURCES = [
+    {
+        "region": "If you are in immediate danger",
+        "details": "Please contact your local emergency number right away (for example 911 in the US/Canada, 999 or 112 in the UK/EU)."
+    },
+    {
+        "region": "United States & Canada",
+        "details": "Call or text 988, or use chat via 988lifeline.org for the Suicide & Crisis Lifeline (24/7, free and confidential)."
+    },
+    {
+        "region": "United Kingdom & Ireland",
+        "details": "Call Samaritans at 116 123 or visit samaritans.org (24/7)."
+    },
+    {
+        "region": "Australia",
+        "details": "Call Lifeline at 13 11 14 or visit lifeline.org.au (24/7)."
+    },
+    {
+        "region": "Other countries",
+        "details": "Visit findahelpline.com or search online for your local suicide or crisis hotline."
+    }
+]
+
 # Encryption utilities
 def get_encryption_key(session_id, secret_key):
     """Generate encryption key from session ID and secret key"""
@@ -46,7 +88,8 @@ def encrypt_message(message, session_id, secret_key):
         key = get_encryption_key(session_id, secret_key)
         fernet = Fernet(key)
         encrypted = fernet.encrypt(message.encode())
-        return base64.urlsafe_b64encode(encrypted).decode()
+        # Fernet already returns URL-safe base64 encoded bytes, just decode to string
+        return encrypted.decode()
     except Exception as e:
         # Fallback to plain text if encryption fails
         print(f"Encryption error: {e}")
@@ -57,8 +100,8 @@ def decrypt_message(encrypted_message, session_id, secret_key):
     try:
         key = get_encryption_key(session_id, secret_key)
         fernet = Fernet(key)
-        decoded = base64.urlsafe_b64decode(encrypted_message.encode())
-        decrypted = fernet.decrypt(decoded)
+        # Fernet expects URL-safe base64 encoded bytes
+        decrypted = fernet.decrypt(encrypted_message.encode())
         return decrypted.decode()
     except Exception as e:
         # Return as-is if decryption fails (might be plain text)
@@ -69,6 +112,12 @@ class EmpatheticChatbot:
     def __init__(self):
         self.name = "Aria"
         self.conversation_context = []
+
+    def detect_crisis(self, text):
+        """Detect potential self-harm or suicidal ideation."""
+        text_lower = text.lower()
+        matched_keywords = [kw for kw in CRISIS_KEYWORDS if kw in text_lower]
+        return len(matched_keywords) > 0, matched_keywords
         
     def detect_emotion(self, text):
         """Detect emotional state from text"""
@@ -169,9 +218,29 @@ class EmpatheticChatbot:
         """Generate empathetic response based on user input"""
         # Detect emotion
         emotion, intensity, detected_emotions = self.detect_emotion(user_input)
+
+        # Detect potential crisis / self-harm content
+        is_crisis, matched_keywords = self.detect_crisis(user_input)
         
         # Generate de-escalating response
         response = self.de_escalate_response(emotion, intensity, user_input)
+
+        # If crisis detected, gently add crisis-specific guidance
+        crisis_message = None
+        if is_crisis:
+            crisis_message = (
+                "I’m really glad you shared this with me. Your safety matters a lot.\n\n"
+                "I’m an AI and not a replacement for professional help, and I can’t respond in emergencies. "
+                "If you are thinking about hurting yourself or feel in immediate danger, please contact a crisis "
+                "hotline or your local emergency number right away. I can share some resources that may help."
+            )
+            # Append a brief note to the main response so it stays empathetic but safety-focused
+            response = (
+                response
+                + "\n\nI’m also sensing that you might be going through something very serious. "
+                  "If there’s any chance you might hurt yourself, please consider reaching out to a trusted person "
+                  "or a crisis service right now."
+            )
         
         # Get current timestamp
         now = datetime.now()
@@ -192,7 +261,8 @@ class EmpatheticChatbot:
             'intensity': intensity,
             'response': encrypted_response,
             'timestamp': timestamp,
-            'formatted_timestamp': formatted_timestamp
+            'formatted_timestamp': formatted_timestamp,
+            'is_crisis': is_crisis
         })
         
         # Keep only last 10 exchanges for context
@@ -205,7 +275,10 @@ class EmpatheticChatbot:
             'intensity': round(intensity, 2),
             'bot_name': self.name,
             'timestamp': timestamp,
-            'formatted_timestamp': formatted_timestamp
+            'formatted_timestamp': formatted_timestamp,
+            'is_crisis': is_crisis,
+            'crisis_message': crisis_message,
+            'crisis_resources': HELPLINE_RESOURCES if is_crisis else []
         }
     
     def reset_conversation(self):
@@ -241,6 +314,12 @@ def index():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     return render_template('index.html')
+
+
+@app.route('/help')
+def help_page():
+    """Static help page with crisis resources"""
+    return render_template('help.html')
 
 @app.route('/age-check', methods=['GET', 'POST'])
 def age_check():
@@ -334,13 +413,16 @@ def chat():
     if not session.get('logged_in'):
         return jsonify({'error': 'Please log in to continue'}), 401
     
-    data = request.json
-    user_message = data.get('message', '').strip()
-    
-    if not user_message:
-        return jsonify({'error': 'Please enter a message'}), 400
-    
     try:
+        data = request.json
+        if not data:
+            return jsonify({'error': 'Invalid request: JSON data required'}), 400
+        
+        user_message = data.get('message', '').strip()
+        
+        if not user_message:
+            return jsonify({'error': 'Please enter a message'}), 400
+        
         # Get session ID for encryption
         session_id = session.get('username', 'default')
         secret_key = app.config['SECRET_KEY']
@@ -355,9 +437,13 @@ def chat():
 def theme():
     """Get or set user theme preference"""
     if request.method == 'POST':
-        theme_name = request.json.get('theme', 'default')
-        session['theme'] = theme_name
-        return jsonify({'success': True, 'theme': theme_name})
+        try:
+            data = request.json or {}
+            theme_name = data.get('theme', 'default')
+            session['theme'] = theme_name
+            return jsonify({'success': True, 'theme': theme_name})
+        except Exception as e:
+            return jsonify({'error': f'Invalid request: {str(e)}'}), 400
     else:
         return jsonify({'theme': session.get('theme', 'default')})
 

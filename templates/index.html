@@ -149,6 +149,28 @@
             transition: background 0.3s ease;
         }
         
+        .crisis-banner {
+            display: none;
+            padding: 1rem 1.25rem;
+            background: #fff3cd;
+            color: #856404;
+            border-bottom: 1px solid #ffeeba;
+        }
+        
+        .crisis-banner.active {
+            display: block;
+        }
+        
+        .crisis-banner h4 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .crisis-banner p {
+            font-size: 0.85rem;
+            margin-bottom: 0.25rem;
+        }
+        
         .message {
             margin-bottom: 1rem;
             animation: fadeIn 0.3s ease-in;
@@ -330,7 +352,7 @@
 </head>
 <body class="theme-default">
     <div class="container">
-        <div class="chat-container">
+            <div class="chat-container">
             <div class="chat-header">
                 <div class="header-controls">
                     <select id="themeSelector" class="theme-selector" onchange="changeTheme(this.value)">
@@ -341,11 +363,18 @@
                         <option value="dark">Dark</option>
                         <option value="rose">Rose</option>
                     </select>
+                    <a href="{{ url_for('help_page') }}" class="logout-btn">Need urgent help?</a>
                     <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
                 </div>
                 <h1>💬 Aria</h1>
                 <p>An empathetic chatbot - here to listen and support you</p>
                 <p style="font-size: 0.75rem; margin-top: 0.25rem; opacity: 0.8;">🔒 End-to-End Encrypted</p>
+            </div>
+            
+            <div id="crisisBanner" class="crisis-banner">
+                <h4>If you are thinking about hurting yourself or feel in immediate danger</h4>
+                <p>Please contact a crisis hotline or your local emergency number right away. Below are some options that may help.</p>
+                <div id="crisisResources"></div>
             </div>
             
             <div class="chat-messages" id="chatMessages">
@@ -392,6 +421,8 @@
         const sendBtn = document.getElementById('sendBtn');
         const typingIndicator = document.getElementById('typingIndicator');
         const themeSelector = document.getElementById('themeSelector');
+        const crisisBanner = document.getElementById('crisisBanner');
+        const crisisResourcesContainer = document.getElementById('crisisResources');
         
         // Load saved theme
         async function loadTheme() {
@@ -494,6 +525,29 @@
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+
+        function showCrisisResources(crisisMessage, crisisResources) {
+            if (!crisisBanner || !crisisResourcesContainer) return;
+            
+            crisisBanner.classList.add('active');
+            
+            crisisResourcesContainer.innerHTML = '';
+            
+            if (crisisMessage) {
+                const p = document.createElement('p');
+                p.textContent = crisisMessage;
+                crisisResourcesContainer.appendChild(p);
+            }
+            
+            if (Array.isArray(crisisResources)) {
+                crisisResources.forEach((item) => {
+                    if (!item || !item.region || !item.details) return;
+                    const region = document.createElement('p');
+                    region.innerHTML = `<strong>${item.region}:</strong> ${item.details}`;
+                    crisisResourcesContainer.appendChild(region);
+                });
+            }
+        }
         
         function showTyping() {
             typingIndicator.classList.add('active');
@@ -537,6 +591,10 @@
                             data.intensity,
                             data.timestamp || new Date().toISOString()
                         );
+
+                        if (data.is_crisis) {
+                            showCrisisResources(data.crisis_message, data.crisis_resources);
+                        }
                         sendBtn.disabled = false;
                         userInput.focus();
                     }, 500);
