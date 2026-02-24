@@ -428,6 +428,9 @@ def chat():
         secret_key = app.config['SECRET_KEY']
         
         response_data = chatbot.generate_response(user_message, session_id, secret_key)
+        # Do not expose emotion detection signals to end users (kept internally in context)
+        response_data.pop('emotion_detected', None)
+        response_data.pop('intensity', None)
         return jsonify(response_data)
     except Exception as e:
         return jsonify({'error': f'Something went wrong: {str(e)}'}), 500

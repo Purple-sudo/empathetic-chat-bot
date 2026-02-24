@@ -233,24 +233,7 @@
             border: 1px solid rgba(76, 175, 80, 0.3);
         }
         
-        .emotion-badge {
-            display: inline-block;
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 12px;
-            margin-top: 0.25rem;
-            opacity: 0.7;
-        }
-        
-        .emotion-angry { background: #fee; color: #c00; }
-        .emotion-sad { background: #eef; color: #006; }
-        .emotion-anxious { background: #ffe; color: #660; }
-        .emotion-happy { background: #efe; color: #060; }
-        .emotion-distressed { background: #fee; color: #c00; }
-        .emotion-concerned { background: #ffe; color: #660; }
-        .emotion-confused { background: #fef; color: #606; }
-        .emotion-neutral { background: #eee; color: #666; }
-        .emotion-positive { background: #efe; color: #060; }
+        /* Emotion labels are intentionally not shown to end users */
         
         .chat-input {
             padding: 1.5rem;
@@ -514,12 +497,7 @@
                 bubble.appendChild(encBadge);
             }
             
-            if (!isUser && emotion) {
-                const badge = document.createElement('div');
-                badge.className = `emotion-badge emotion-${emotion}`;
-                badge.textContent = `Detected: ${emotion} (${intensity !== null ? (intensity > 0 ? '+' : '') + intensity.toFixed(2) : 'N/A'})`;
-                bubble.appendChild(badge);
-            }
+            // Emotion detection is stored internally but not displayed to the user
             
             messageDiv.appendChild(bubble);
             chatMessages.appendChild(messageDiv);
@@ -587,8 +565,8 @@
                         addMessage(
                             data.response, 
                             false, 
-                            data.emotion_detected, 
-                            data.intensity,
+                            null,
+                            null,
                             data.timestamp || new Date().toISOString()
                         );
 
