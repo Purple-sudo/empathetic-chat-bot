@@ -344,9 +344,9 @@ class EmpatheticChatbot:
                 "You don’t have to carry all of this alone in this moment. We can sort through it together, one piece at a time."
             ],
             "joy": [
-                "It’s really lovely to hear something positive in what you’re sharing. Would you like to talk more about what’s bringing you joy right now?",
-                "I’m glad you’re experiencing this good feeling. Savoring it for a moment can be really nourishing. What about this experience feels most meaningful to you?",
-                "It’s great to hear that something is going well. If you’d like, we can explore how to hold onto or build on this feeling."
+                "That’s good to hear. What’s been going on today?",
+                "Nice — I’m glad things are okay. Anything you want to chat about?",
+                "Love that. Want to tell me more, or switch topics?"
             ],
             "love": [
                 "It sounds like there’s a lot of care and love in what you’re describing. That’s a powerful feeling.",
@@ -369,9 +369,9 @@ class EmpatheticChatbot:
                 "It’s really nice to hear you acknowledge your own efforts. You deserve to take a moment and let that pride sink in."
             ],
             "calm": [
-                "It’s good to hear that things feel at least a bit steady right now. We can still explore anything that’s on your mind.",
-                "If you’re feeling relatively calm, this can be a helpful time to reflect gently on what you need going forward.",
-                "I’m here with you in this calmer moment. Is there anything you’d like to unpack or prepare for while things feel steadier?"
+                "Got it. What would you like to talk about?",
+                "Okay — I’m here. What’s on your mind today?",
+                "Sounds good. Want to tell me what’s been happening lately?"
             ],
             "concerned": [
                 "It makes sense to feel concerned about this. Your feelings are telling you that something matters here.",
@@ -418,6 +418,18 @@ class EmpatheticChatbot:
         greeting_phrases = ["hi", "hello", "hey", "hiya", "good morning", "good afternoon", "good evening"]
         thanks_phrases = ["thanks", "thank you", "thx", "ty", "appreciate it"]
         bye_phrases = ["bye", "goodbye", "see you", "see ya", "later", "take care"]
+        how_are_you_phrases = [
+            "how are you", "how r you", "how are u", "how r u",
+            "how's it going", "hows it going", "how are things"
+        ]
+        im_okay_phrases = [
+            "i'm ok", "im ok", "i am ok",
+            "i'm okay", "im okay", "i am okay",
+            "i'm fine", "im fine", "i am fine",
+            "i'm good", "im good", "i am good",
+            "doing ok", "doing okay", "doing fine", "doing good",
+            "not bad", "pretty good"
+        ]
 
         def _has_any(phrases):
             return any(p in text_lower for p in phrases)
@@ -430,6 +442,18 @@ class EmpatheticChatbot:
             intent_response = (
                 f"Hey — nice to meet you. I’m {effective_name}.\n\n"
                 "How are you doing right now?"
+            )
+        # If the user says they're okay and asks how we are, respond like normal small-talk
+        elif _is_short() and _has_any(im_okay_phrases) and _has_any(how_are_you_phrases):
+            intent_response = (
+                f"I’m doing okay too — thanks for asking.\n\n"
+                "What would you like to talk about today?"
+            )
+        # If they only ask how we are, respond naturally and bounce the question back
+        elif _is_short() and _has_any(how_are_you_phrases):
+            intent_response = (
+                f"I’m doing okay — thanks for asking.\n\n"
+                "How are you doing?"
             )
         elif _is_short() and _has_any(thanks_phrases):
             intent_response = (
