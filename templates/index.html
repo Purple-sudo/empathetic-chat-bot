@@ -96,6 +96,24 @@
             display: flex;
             gap: 0.5rem;
         }
+
+        .header-controls .mini-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.3s;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .header-controls .mini-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
         
         .theme-selector {
             background: rgba(255, 255, 255, 0.2);
@@ -370,8 +388,15 @@
                         <option value="dark">Dark</option>
                         <option value="rose">Rose</option>
                     </select>
-                    <a href="{{ url_for('help_page') }}" class="logout-btn">Need urgent help?</a>
-                    <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+                    <select id="langSelector" class="theme-selector" onchange="changeLanguage(this.value)">
+                        <option value="en">EN</option>
+                        <option value="es">ES</option>
+                        <option value="fr">FR</option>
+                    </select>
+                    <a href="{{ url_for('resources_page') }}" class="mini-btn">Resources</a>
+                    <a href="{{ url_for('analytics_page') }}" class="mini-btn">Analytics</a>
+                    <a href="{{ url_for('help_page') }}" class="mini-btn">Urgent help</a>
+                    <a href="{{ url_for('logout') }}" class="mini-btn">Logout</a>
                 </div>
                 <h1 id="botNameTitle">💬 Aria</h1>
                 <p>An empathetic chatbot - here to listen and support you</p>
@@ -413,10 +438,16 @@
                             autocomplete="off"
                             required
                         >
+                        <button type="button" class="btn btn-outline-secondary" id="micBtn" onclick="toggleVoiceInput()" title="Voice input">🎤</button>
+                        <button type="button" class="btn btn-outline-secondary" id="ttsBtn" onclick="toggleTTS()" title="Read responses aloud">🔊</button>
                         <button type="submit" class="btn-send" id="sendBtn">Send</button>
                     </div>
                 </form>
                 <button class="btn-reset" onclick="resetChat()">Reset Conversation</button>
+                <div class="bot-name-settings">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportConversation('json')">Export JSON</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportConversation('csv')">Export CSV</button>
+                </div>
                 <div class="bot-name-settings">
                     <span>Bot name:</span>
                     <input type="text" id="botNameInput" placeholder="Aria" maxlength="40" />
@@ -433,10 +464,41 @@
         const sendBtn = document.getElementById('sendBtn');
         const typingIndicator = document.getElementById('typingIndicator');
         const themeSelector = document.getElementById('themeSelector');
+        const langSelector = document.getElementById('langSelector');
         const crisisBanner = document.getElementById('crisisBanner');
         const crisisResourcesContainer = document.getElementById('crisisResources');
         const botNameTitle = document.getElementById('botNameTitle');
         const botNameInput = document.getElementById('botNameInput');
+        const micBtn = document.getElementById('micBtn');
+        const ttsBtn = document.getElementById('ttsBtn');
+
+        let ttsEnabled = false;
+        let recognition = null;
+        let recognitionActive = false;
+
+        const I18N = {
+            en: {
+                placeholder: "Type your message here...",
+                welcomeTitle: "Welcome! 👋",
+                welcomeBody: "I'm Aria, your empathetic companion. I'm here to listen, understand, and support you.",
+                welcomePrivacy: "🔒 All messages are end-to-end encrypted for your privacy",
+                welcomePrompt: "How are you feeling today?"
+            },
+            es: {
+                placeholder: "Escribe tu mensaje aquí...",
+                welcomeTitle: "¡Bienvenido! 👋",
+                welcomeBody: "Soy Aria, tu compañera empática. Estoy aquí para escucharte, entenderte y apoyarte.",
+                welcomePrivacy: "🔒 Todos los mensajes están cifrados de extremo a extremo para tu privacidad",
+                welcomePrompt: "¿Cómo te sientes hoy?"
+            },
+            fr: {
+                placeholder: "Écrivez votre message ici...",
+                welcomeTitle: "Bienvenue ! 👋",
+                welcomeBody: "Je suis Aria, votre compagne empathique. Je suis là pour vous écouter, vous comprendre et vous soutenir.",
+                welcomePrivacy: "🔒 Tous les messages sont chiffrés de bout en bout pour votre confidentialité",
+                welcomePrompt: "Comment vous sentez-vous aujourd’hui ?"
+            }
+        };
         
         // Load saved theme
         async function loadTheme() {
@@ -449,6 +511,47 @@
                 }
             } catch (error) {
                 console.error('Error loading theme:', error);
+            }
+        }
+
+        // Load language
+        async function loadLanguage() {
+            try {
+                const response = await fetch('/language');
+                const data = await response.json();
+                const lang = data.lang || 'en';
+                if (langSelector) langSelector.value = lang;
+                applyLanguage(lang);
+            } catch (error) {
+                console.error('Error loading language:', error);
+            }
+        }
+
+        function applyLanguage(lang) {
+            const dict = I18N[lang] || I18N.en;
+            if (userInput) userInput.placeholder = dict.placeholder;
+            // Update welcome message (only if still present)
+            const welcomeMsg = chatMessages.querySelector('.welcome-message');
+            if (welcomeMsg) {
+                welcomeMsg.innerHTML = `
+                    <h4>${dict.welcomeTitle}</h4>
+                    <p>${dict.welcomeBody} Feel free to share what's on your mind - whether you're feeling happy, sad, anxious, or just need someone to talk to. I'll respond with care and understanding.</p>
+                    <p><small>${dict.welcomePrivacy}</small></p>
+                    <p><small>${dict.welcomePrompt}</small></p>
+                `;
+            }
+        }
+
+        async function changeLanguage(lang) {
+            applyLanguage(lang);
+            try {
+                await fetch('/language', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lang })
+                });
+            } catch (error) {
+                console.error('Error saving language:', error);
             }
         }
 
@@ -549,6 +652,81 @@
             messageDiv.appendChild(bubble);
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            if (!isUser && ttsEnabled) {
+                speakText(text);
+            }
+        }
+
+        function exportConversation(format) {
+            window.location.href = `/export?format=${encodeURIComponent(format)}`;
+        }
+
+        function speakText(text) {
+            try {
+                if (!('speechSynthesis' in window)) return;
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.rate = 1.0;
+                utter.pitch = 1.0;
+                window.speechSynthesis.speak(utter);
+            } catch (e) {
+                console.error('TTS error:', e);
+            }
+        }
+
+        function toggleTTS() {
+            ttsEnabled = !ttsEnabled;
+            if (ttsBtn) {
+                ttsBtn.style.opacity = ttsEnabled ? '1' : '0.6';
+            }
+        }
+
+        function initVoiceRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return null;
+            const rec = new SpeechRecognition();
+            rec.lang = (langSelector && langSelector.value) ? langSelector.value : 'en';
+            rec.interimResults = false;
+            rec.maxAlternatives = 1;
+            rec.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                if (userInput) userInput.value = transcript;
+                recognitionActive = false;
+                if (micBtn) micBtn.style.opacity = '1';
+            };
+            rec.onerror = () => {
+                recognitionActive = false;
+                if (micBtn) micBtn.style.opacity = '1';
+            };
+            rec.onend = () => {
+                recognitionActive = false;
+                if (micBtn) micBtn.style.opacity = '1';
+            };
+            return rec;
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                recognition = initVoiceRecognition();
+            }
+            if (!recognition) {
+                alert('Voice input is not supported in this browser.');
+                return;
+            }
+            if (recognitionActive) {
+                recognition.stop();
+                recognitionActive = false;
+                if (micBtn) micBtn.style.opacity = '1';
+                return;
+            }
+            try {
+                recognition.lang = (langSelector && langSelector.value) ? langSelector.value : 'en';
+                recognition.start();
+                recognitionActive = true;
+                if (micBtn) micBtn.style.opacity = '0.6';
+            } catch (e) {
+                console.error('Voice start error:', e);
+            }
         }
 
         function showCrisisResources(crisisMessage, crisisResources) {
@@ -699,6 +877,7 @@
         // Load theme and bot name on page load
         loadTheme();
         loadBotName();
+        loadLanguage();
         
         // Focus input on load
         userInput.focus();

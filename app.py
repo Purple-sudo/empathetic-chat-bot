@@ -1,5 +1,7 @@
 import os
 import base64
+import csv
+import io
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
@@ -243,6 +245,55 @@ class EmpatheticChatbot:
         intensity = vader_compound
 
         return primary_emotion, intensity, sorted(list(detected_emotions))
+
+    def get_analytics(self):
+        """Compute lightweight conversation analytics (internal use)."""
+        emotions = {}
+        intensity_values = []
+        crisis_count = 0
+        total = len(self.conversation_context)
+
+        for item in self.conversation_context:
+            em = item.get("emotion", "unknown")
+            emotions[em] = emotions.get(em, 0) + 1
+            if isinstance(item.get("intensity"), (int, float)):
+                intensity_values.append(float(item["intensity"]))
+            if item.get("is_crisis"):
+                crisis_count += 1
+
+        avg_intensity = sum(intensity_values) / len(intensity_values) if intensity_values else 0.0
+
+        return {
+            "total_messages": total,
+            "emotion_counts": emotions,
+            "avg_intensity": round(avg_intensity, 3),
+            "crisis_flagged_messages": crisis_count
+        }
+
+    def export_conversation(self, session_id, secret_key, export_format="json"):
+        """Export conversation history for the current session (decrypting stored messages)."""
+        rows = []
+        for item in self.conversation_context:
+            user_text = decrypt_message(item.get("user", ""), session_id, secret_key)
+            bot_text = decrypt_message(item.get("response", ""), session_id, secret_key)
+            rows.append({
+                "timestamp": item.get("timestamp"),
+                "user": user_text,
+                "bot": bot_text,
+                "emotion": item.get("emotion"),
+                "intensity": item.get("intensity"),
+                "is_crisis": bool(item.get("is_crisis", False))
+            })
+
+        if export_format == "csv":
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=["timestamp", "user", "bot", "emotion", "intensity", "is_crisis"])
+            writer.writeheader()
+            writer.writerows(rows)
+            return output.getvalue(), "text/csv"
+
+        # default json
+        return rows, "application/json"
     
     def de_escalate_response(self, emotion, intensity, text):
         """Generate empathetic, de-escalating responses"""
@@ -557,6 +608,65 @@ def index():
 def help_page():
     """Static help page with crisis resources"""
     return render_template('help.html')
+
+
+@app.route('/resources')
+def resources_page():
+    """Professional mental health resources (non-emergency)."""
+    return render_template('resources.html')
+
+
+@app.route('/analytics')
+@login_required
+def analytics_api():
+    """Return basic conversation analytics."""
+    return jsonify(chatbot.get_analytics())
+
+
+@app.route('/analytics-page')
+@login_required
+def analytics_page():
+    """Analytics UI page."""
+    return render_template('analytics.html')
+
+
+@app.route('/export')
+@login_required
+def export_conversation():
+    """Export conversation history as JSON or CSV."""
+    export_format = request.args.get("format", "json").lower()
+    if export_format not in ("json", "csv"):
+        export_format = "json"
+
+    session_id = session.get('username', 'default')
+    secret_key = app.config['SECRET_KEY']
+    payload, content_type = chatbot.export_conversation(session_id, secret_key, export_format=export_format)
+
+    if export_format == "csv":
+        return app.response_class(
+            payload,
+            mimetype=content_type,
+            headers={"Content-Disposition": "attachment; filename=conversation.csv"}
+        )
+
+    return jsonify(payload)
+
+
+@app.route('/language', methods=['GET', 'POST'])
+@login_required
+def language():
+    """Get or set UI language preference (MVP)."""
+    if request.method == 'POST':
+        try:
+            data = request.json or {}
+            lang = (data.get('lang') or 'en').strip().lower()
+            if lang not in ('en', 'es', 'fr'):
+                lang = 'en'
+            session['lang'] = lang
+            return jsonify({'success': True, 'lang': lang})
+        except Exception as e:
+            return jsonify({'error': f'Invalid request: {str(e)}'}), 400
+    return jsonify({'lang': session.get('lang', 'en')})
 
 @app.route('/age-check', methods=['GET', 'POST'])
 def age_check():
