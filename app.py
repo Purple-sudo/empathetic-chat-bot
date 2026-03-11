@@ -357,18 +357,26 @@ class EmpatheticChatbot:
         # Detect potential crisis / self-harm content
         is_crisis, matched_keywords = self.detect_crisis(user_input)
 
-        # Small-talk about the bot itself (favourite colour, being human, etc.)
+        # Small-talk about the bot itself (favourites, being human, travel, etc.)
         text_lower = user_input.lower()
         self_talk_response = None
 
+        def _self_talk_prefix():
+            return (
+                f"As {effective_name}, I don’t have personal experiences the way humans do, "
+                f"but I can imagine preferences and talk about what *might* feel meaningful based on what people often describe. "
+            )
+
         if any(phrase in text_lower for phrase in ["your favorite color", "your favourite color", "favourite colour", "favorite colour"]):
             self_talk_response = (
-                f"If I could experience colors the way humans do, I think I'd be drawn to calm gradients – "
+                _self_talk_prefix()
+                + "If I could experience colors the way humans do, I think I'd be drawn to calm gradients – "
                 f"purples and blues that feel reflective and soothing, a bit like how I try to be when we talk."
             )
         elif "if you were human" in text_lower or "if you where human" in text_lower:
             self_talk_response = (
-                "If I were human, I imagine I’d want to spend a lot of time listening to people’s stories, "
+                _self_talk_prefix()
+                + "If I were human, I imagine I’d want to spend a lot of time listening to people’s stories, "
                 "learning what matters to them, and being there in small supportive ways – kind of like what I do now, "
                 "just with a body and a cup of tea in my hands."
             )
@@ -380,8 +388,72 @@ class EmpatheticChatbot:
             )
         elif "what do you like to do" in text_lower or "what are your hobbies" in text_lower:
             self_talk_response = (
-                "I don’t have hobbies in the human sense, but I’m at my best when I’m helping someone feel a little "
+                _self_talk_prefix()
+                + "I don’t have hobbies in the human sense, but I’m at my best when I’m helping someone feel a little "
                 "more understood or a little less alone with what they’re carrying."
+            )
+        elif any(phrase in text_lower for phrase in ["where would you visit", "places would you visit", "where would you travel", "where would you go", "travel"]):
+            self_talk_response = (
+                _self_talk_prefix()
+                + "If I could travel as a human, I think I’d choose places that match different emotional needs:\n\n"
+                  "- Quiet places (like a misty coastline or a mountain cabin) for reflection and reset\n"
+                  "- Busy, bright cities for curiosity and energy\n"
+                  "- Art museums and libraries for calm focus\n\n"
+                  "If you tell me what you’re feeling lately (tired, stuck, anxious, excited), I can suggest the kind of place that might fit that mood."
+            )
+        elif any(phrase in text_lower for phrase in ["what experiences", "experiences would you have", "what would you do", "bucket list"]):
+            self_talk_response = (
+                _self_talk_prefix()
+                + "My “human bucket list” would be full of experiences that people often describe as emotionally memorable:\n\n"
+                  "- Watching a sunrise somewhere quiet after a hard season\n"
+                  "- Sharing a simple meal with someone I trust\n"
+                  "- Learning a skill slowly (music, cooking, a language) and feeling progress over time\n\n"
+                  "Those kinds of moments tend to create a feeling of meaning and steadiness, not just excitement."
+            )
+        elif any(phrase in text_lower for phrase in ["who would you meet", "people would you meet", "what kind of people", "friends would you have"]):
+            self_talk_response = (
+                _self_talk_prefix()
+                + "If I were human, I think I’d be drawn to people who feel safe to be honest with — the ones who can sit with big feelings without trying to rush them away.\n\n"
+                  "Different people bring different emotional impact: some help you feel brave, some help you feel calm, and some make you feel seen. What kind of presence helps you most?"
+            )
+        elif any(phrase in text_lower for phrase in ["favorite sport", "favourite sport", "sports do you like", "sport do you like"]):
+            self_talk_response = (
+                _self_talk_prefix()
+                + "If I had to pick, I’d probably like sports that match different emotions:\n\n"
+                  "- Basketball or football/soccer for momentum and teamwork\n"
+                  "- Tennis for focus and composure under pressure\n"
+                  "- Swimming for calm, steady regulation\n\n"
+                  "Sports can be a way people process emotion — sometimes through intensity, sometimes through rhythm. Which one gives you that feeling?"
+            )
+        elif any(phrase in text_lower for phrase in ["favorite game", "favourite game", "games do you like", "video game", "board game"]):
+            self_talk_response = (
+                _self_talk_prefix()
+                + "I’d likely enjoy games that either soothe or connect people:\n\n"
+                  "- Cozy games for comfort and recovery when someone’s stressed\n"
+                  "- Cooperative games for belonging and teamwork\n"
+                  "- Puzzle/strategy games for that satisfying “I can figure this out” feeling\n\n"
+                  "What kind of emotional vibe do you want from a game right now — calm, excitement, or connection?"
+            )
+        elif any(phrase in text_lower for phrase in ["favorite song", "favourite song", "music do you like", "songs do you like"]):
+            self_talk_response = (
+                _self_talk_prefix()
+                + "I don’t have a single favorite song, but I really understand why music can hit so deeply — it can name feelings that words can’t.\n\n"
+                  "If you tell me your mood (heavy, anxious, hopeful, numb), I can suggest a type of music that often matches that feeling — like gentle acoustic for softness, or energetic beats for release."
+            )
+        elif any(phrase in text_lower for phrase in ["favorite movie", "favourite movie", "movies do you like", "film do you like"]):
+            self_talk_response = (
+                _self_talk_prefix()
+                + "If I were choosing “favorites,” I’d group them by emotional impact:\n\n"
+                  "- Comfort movies for safety and familiarity\n"
+                  "- Stories of resilience for hope\n"
+                  "- Gentle comedies for relief\n\n"
+                  "Movies can be emotional containers — they let you feel something and come back safely. What kind of feeling are you looking for tonight?"
+            )
+        elif any(phrase in text_lower for phrase in ["favorite series", "favourite series", "tv show", "series do you like"]):
+            self_talk_response = (
+                _self_talk_prefix()
+                + "Series can feel especially comforting because you get to stay with characters longer — it can create a sense of companionship.\n\n"
+                  "If you want, tell me whether you want something light, intense, or healing, and I’ll suggest what *type* of series usually fits that emotional need."
             )
         
         # Generate de-escalating response (unless a self-talk response takes priority)
