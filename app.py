@@ -388,7 +388,8 @@ class EmpatheticChatbot:
         # Select response based on emotion and intensity
         if emotion in responses:
             if intensity <= -0.7:  # Very intense negative emotion
-                response = responses[emotion][0] if len(responses[emotion]) > 0 else responses['distressed'][0]
+                # If we somehow have an empty list, fall back safely
+                response = responses[emotion][0] if len(responses[emotion]) > 0 else responses['sadness'][0]
             elif intensity <= -0.3:
                 response = responses[emotion][1] if len(responses[emotion]) > 1 else responses[emotion][0]
             else:
@@ -408,9 +409,37 @@ class EmpatheticChatbot:
         # Detect potential crisis / self-harm content
         is_crisis, matched_keywords = self.detect_crisis(user_input)
 
-        # Small-talk about the bot itself (favourites, being human, travel, etc.)
+        # Simple conversational intents (greetings/thanks/bye) + self-talk about the bot
         text_lower = user_input.lower()
+        intent_response = None
         self_talk_response = None
+
+        # Natural “human” conversation starters
+        greeting_phrases = ["hi", "hello", "hey", "hiya", "good morning", "good afternoon", "good evening"]
+        thanks_phrases = ["thanks", "thank you", "thx", "ty", "appreciate it"]
+        bye_phrases = ["bye", "goodbye", "see you", "see ya", "later", "take care"]
+
+        def _has_any(phrases):
+            return any(p in text_lower for p in phrases)
+
+        def _is_short():
+            return len(user_input.strip()) <= 40
+
+        # If the user sends a short greeting/thanks/bye, prioritize a natural reply
+        if _is_short() and _has_any(greeting_phrases):
+            intent_response = (
+                f"Hey — nice to meet you. I’m {effective_name}.\n\n"
+                "How are you doing right now?"
+            )
+        elif _is_short() and _has_any(thanks_phrases):
+            intent_response = (
+                "Of course — I’m glad I could help.\n\n"
+                "Do you want to keep going, or is there something else on your mind?"
+            )
+        elif _is_short() and _has_any(bye_phrases):
+            intent_response = (
+                "Take care of yourself. If you want to talk again later, I’ll be here."
+            )
 
         def _self_talk_prefix():
             return (
@@ -507,8 +536,10 @@ class EmpatheticChatbot:
                   "If you want, tell me whether you want something light, intense, or healing, and I’ll suggest what *type* of series usually fits that emotional need."
             )
         
-        # Generate de-escalating response (unless a self-talk response takes priority)
-        if self_talk_response:
+        # Generate response (intent > self-talk > emotion-based)
+        if intent_response:
+            response = intent_response
+        elif self_talk_response:
             response = self_talk_response
         else:
             response = self.de_escalate_response(emotion, intensity, user_input)
