@@ -2,7 +2,7 @@
 
 A friendly, emotionally intelligent chatbot designed to understand human emotions and gently de-escalate intense feelings and situations. Aria provides empathetic support through natural conversation, responding with care and understanding to users' emotional states.
 
-## ✨ Features
+# Features
 
 - **Emotion Detection**: Automatically detects emotional states (angry, sad, anxious, happy, confused, etc.) from user messages
 - **Empathetic Responses**: Provides caring, understanding responses tailored to detected emotions
@@ -11,7 +11,7 @@ A friendly, emotionally intelligent chatbot designed to understand human emotion
 - **Real-time Chat Interface**: Beautiful, responsive web interface for seamless interaction
 - **Context Awareness**: Maintains conversation context to provide relevant, continuous support
 
-## 🎯 Design Philosophy
+# Design Philosophy
 
 Aria is designed with empathy at its core:
 - **Not overly friendly**: Maintains a professional, calm demeanor
@@ -20,7 +20,7 @@ Aria is designed with empathy at its core:
 - **Supportive**: Provides a safe space for users to express themselves
 - **Non-judgmental**: Responds with acceptance and understanding
 
-## 🛠 Tech Stack
+# Tech Stack
 
 - **Backend**: Python 3.x with Flask
 - **Natural Language Processing**: 
@@ -30,7 +30,7 @@ Aria is designed with empathy at its core:
 - **Frontend**: HTML5, CSS3, JavaScript, Bootstrap 5
 - **Emotion Detection**: Keyword analysis + sentiment scoring
 
-## 📦 Installation
+# Installation
 
 1. **Navigate to the project directory:**
    ```bash
@@ -59,16 +59,16 @@ Aria is designed with empathy at its core:
 5. **Access the chatbot:**
    Open http://127.0.0.1:5001 in your browser
 
-## 💬 How It Works
+# How It Works
 
-### Emotion Detection
+# Emotion Detection
 
 Aria uses a combination of:
 - **Sentiment Analysis**: VADER (Valence Aware Dictionary and sEntiment Reasoner) to analyze emotional polarity
 - **Keyword Detection**: Identifies emotional keywords in messages
 - **Intensity Scoring**: Measures the strength of detected emotions
 
-### Response Generation
+# Response Generation
 
 Based on detected emotions, Aria:
 1. Acknowledges the user's emotional state
@@ -84,7 +84,7 @@ Based on detected emotions, Aria:
 - **Non-judgmental Listening**: Creating a safe space for expression
 - **Gradual Guidance**: Slowly helping users move toward calmer states
 
-## 🎨 Interface Features
+# Interface Features
 
 - **Beautiful Design**: Modern, calming color scheme with smooth animations
 - **Real-time Chat**: Instant message exchange with typing indicators
@@ -92,17 +92,17 @@ Based on detected emotions, Aria:
 - **Responsive Layout**: Works on desktop, tablet, and mobile devices
 - **Conversation Reset**: Option to start fresh conversations
 
-## 📝 Example Interactions
+# Example Interactions
 
 **User:** "I'm so frustrated with everything right now!"
 
 **Aria:** "I can hear that you're feeling really upset right now. That sounds incredibly difficult. Would you like to take a moment to breathe, or would it help to talk about what's bothering you?"
 
-**User:** "I'm worried about tomorrow's presentation"
+**User:** "I'm worried about tomorrow's presentation."
 
 **Aria:** "It sounds like you're feeling a lot of worry or stress. That's completely understandable. Sometimes it helps to name what we're feeling. Can you tell me a bit more about what's causing this anxiety?"
 
-## 🔧 Customization
+# Customization
 
 You can customize Aria by:
 
@@ -111,7 +111,7 @@ You can customize Aria by:
 3. **Changing Tone**: Modify response language to match your desired level of friendliness
 4. **UI Styling**: Update CSS in `templates/index.html` to change the visual appearance
 
-## ⚠️ Important Notes
+# Important Notes
 
 - This chatbot is designed for emotional support and de-escalation
 - It is **not a replacement** for professional mental health services
@@ -132,7 +132,7 @@ Potential improvements:
 
 This project is open source and available for educational and supportive purposes.
 
-## 🤝 Contributing
+#  Contributing
 
 Feel free to suggest improvements or contribute to making Aria more empathetic and helpful!
 
