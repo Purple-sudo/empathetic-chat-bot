@@ -50,3 +50,7 @@ nltk_data/
 
 # Logs
 *.log
+
+# Local SQLite database (contains user data)
+chatbot.db
+chatbot.db-*

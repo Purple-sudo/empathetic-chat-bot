@@ -12,9 +12,12 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+from memory_store import MemoryStore, extract_memories_from_text
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SESSION_TYPE'] = 'filesystem'
+app.config['DB_PATH'] = os.environ.get('DB_PATH', os.path.join(os.path.dirname(__file__), 'chatbot.db'))
 
 # Download required NLTK data
 try:
@@ -568,6 +571,20 @@ class EmpatheticChatbot:
         else:
             response = self.de_escalate_response(emotion, intensity, user_input)
 
+        # Personalize using stored memory if available (kept simple + non-invasive)
+        if session_id:
+            try:
+                stored = memory_store.get_memories(user_id=session_id)
+                preferred_name = stored.get("preferred_name")
+                if preferred_name and isinstance(preferred_name, str) and preferred_name.strip():
+                    # Light personalization only when it naturally fits (short replies or greetings)
+                    if intent_response and "How are you" in response:
+                        response = response.replace("How are you doing right now?", f"How are you doing right now, {preferred_name}?")
+                    elif text_lower.strip() in ("hi", "hello", "hey", "hiya"):
+                        response = f"Hey {preferred_name} — nice to see you. How are you doing right now?"
+            except Exception:
+                pass
+
         # If crisis detected, gently add crisis-specific guidance
         crisis_message = None
         if is_crisis:
@@ -631,6 +648,10 @@ class EmpatheticChatbot:
 # Initialize chatbot
 chatbot = EmpatheticChatbot()
 
+# Initialize persistent memory store (SQLite)
+memory_store = MemoryStore(app.config['DB_PATH'])
+memory_store.init()
+
 # Minimum age requirement (18 years)
 MINIMUM_AGE = 18
 
@@ -675,6 +696,21 @@ def resources_page():
 @login_required
 def analytics_api():
     """Return basic conversation analytics."""
+    # Analytics from persisted history, per user
+    user_id = session.get('username', 'default')
+    recent = memory_store.get_recent_exchanges(user_id=user_id, limit=500)
+    chatbot.conversation_context = [
+        {
+            "user": r.user_text,
+            "response": r.bot_text,
+            "emotion": r.emotion,
+            "intensity": r.intensity,
+            "timestamp": r.timestamp,
+            "formatted_timestamp": r.formatted_timestamp,
+            "is_crisis": r.is_crisis,
+        }
+        for r in recent
+    ]
     return jsonify(chatbot.get_analytics())
 
 
@@ -695,6 +731,20 @@ def export_conversation():
 
     session_id = session.get('username', 'default')
     secret_key = app.config['SECRET_KEY']
+    # Load persisted conversation for this user into the chatbot export path
+    recent = memory_store.get_recent_exchanges(user_id=session_id, limit=5000)
+    chatbot.conversation_context = [
+        {
+            "user": r.user_text,
+            "response": r.bot_text,
+            "emotion": r.emotion,
+            "intensity": r.intensity,
+            "timestamp": r.timestamp,
+            "formatted_timestamp": r.formatted_timestamp,
+            "is_crisis": r.is_crisis,
+        }
+        for r in recent
+    ]
     payload, content_type = chatbot.export_conversation(session_id, secret_key, export_format=export_format)
 
     if export_format == "csv":
@@ -829,8 +879,50 @@ def chat():
         session_id = session.get('username', 'default')
         secret_key = app.config['SECRET_KEY']
         bot_name = session.get('bot_name', chatbot.name)
+
+        # Load recent history for per-user context (so it persists across restarts)
+        recent = memory_store.get_recent_exchanges(user_id=session_id, limit=10)
+        chatbot.conversation_context = [
+            {
+                "user": r.user_text,
+                "response": r.bot_text,
+                "emotion": r.emotion,
+                "intensity": r.intensity,
+                "timestamp": r.timestamp,
+                "formatted_timestamp": r.formatted_timestamp,
+                "is_crisis": r.is_crisis,
+            }
+            for r in recent
+        ]
         
         response_data = chatbot.generate_response(user_message, session_id, secret_key, bot_name=bot_name)
+
+        # Persist exchange + extracted long-term memories (encrypted exchange text)
+        try:
+            now = datetime.now()
+            timestamp = now.isoformat()
+            formatted_timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
+
+            encrypted_user = encrypt_message(user_message, session_id, secret_key)
+            encrypted_bot = encrypt_message(response_data.get("response", ""), session_id, secret_key)
+
+            # Extract a conservative set of memories from the user's message
+            for k, v in extract_memories_from_text(user_message).items():
+                memory_store.upsert_memory(user_id=session_id, key=k, value=v)
+
+            memory_store.add_exchange(
+                user_id=session_id,
+                user_text=encrypted_user,
+                bot_text=encrypted_bot,
+                emotion=response_data.get("emotion_detected"),
+                intensity=float(response_data.get("intensity")) if response_data.get("intensity") is not None else None,
+                is_crisis=bool(response_data.get("is_crisis", False)),
+                timestamp=timestamp,
+                formatted_timestamp=formatted_timestamp,
+            )
+        except Exception as e:
+            print(f"DB persist error: {e}")
+
         # Do not expose emotion detection signals to end users (kept internally in context)
         response_data.pop('emotion_detected', None)
         response_data.pop('intensity', None)
@@ -879,9 +971,14 @@ def bot_name():
 def reset():
     if not session.get('logged_in'):
         return jsonify({'error': 'Please log in to continue'}), 401
-    
-    chatbot.reset_conversation()
-    return jsonify({'message': 'Conversation reset'})
+
+    user_id = session.get('username', 'default')
+    try:
+        memory_store.delete_user_history(user_id=user_id)
+        chatbot.reset_conversation()
+        return jsonify({'message': 'Conversation reset (history cleared for this user)'})
+    except Exception as e:
+        return jsonify({'error': f'Failed to reset conversation: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
